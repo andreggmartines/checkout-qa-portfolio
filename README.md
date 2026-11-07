@@ -10,7 +10,7 @@ Uma loja virtual de artigos para casa, criada só para ser testada. O foco é o 
 > - [x] [Plano de testes baseado em risco](docs/plano-de-testes.md)
 > - [x] [Cenários em Gherkin (BDD)](docs/cenarios/)
 > - [x] [Testes E2E com Cypress](cypress/e2e/)
-> - [ ] Testes de API com Postman/Newman
+> - [x] [Testes de API com Postman/Newman](postman/)
 > - [ ] Execução em CI com GitHub Actions
 > - [ ] Bug reports de exemplo
 
@@ -59,6 +59,27 @@ Resultado esperado: **21 testes passam e 3 falham** (CT08, CT20 e CT24), um para
 - Preparação pela API e verificação pela interface: nos testes de pós-venda, o pedido é criado com `cy.request()` e só o comportamento em teste passa pela tela.
 - Comandos customizados em [`cypress/support/commands.js`](cypress/support/commands.js) e massa de dados em [`cypress/fixtures`](cypress/fixtures/).
 - Testes de valor-limite (frete em exatamente R$ 200,00, reembolso R$ 0,01 acima do saldo).
+
+## Testes de API com Postman/Newman
+
+A coleção em [`postman/`](postman/) cobre os 14 cenários de API do plano (API01 a API14), com **74 verificações**: status HTTP, contrato da resposta (JSON Schema), códigos de erro, regras de negócio e tempo de resposta.
+
+```bash
+npm run test:api        # sobe a loja e roda a coleção com o Newman
+npm run test:api:bugs   # roda contra a loja no modo com bugs
+```
+
+Para abrir no Postman: **Import** → selecione os dois arquivos da pasta `postman/` → escolha o ambiente "Checkout Demo — Local" → rode a coleção com o **Collection Runner**, em ordem.
+
+**Destaques**
+
+- Encadeamento de requisições: o ID do pedido criado em API03 é salvo numa variável e reaproveitado no pós-venda.
+- Teste de idempotência (API10): a mesma solicitação de reembolso, com a mesma chave, é enviada duas vezes e não pode gerar dois reembolsos.
+- Validação de contrato com JSON Schema em produtos e pedidos.
+- Verificações globais (tempo de resposta e `Content-Type`) aplicadas a todas as requisições.
+- Relatório JUnit gerado em `reports/newman.xml`, usado no CI.
+
+No modo com bugs, a API10 falha (o reembolso é duplicado) e, em consequência, a API12 também falha, porque o saldo já foi consumido pelo reembolso indevido.
 
 <details>
 <summary>Problemas para rodar o Cypress no Windows?</summary>
@@ -126,4 +147,7 @@ cypress/
   e2e/             testes E2E (CT01 a CT24)
   support/         comandos customizados
   fixtures/        dados de teste
+postman/
+  checkout-demo.postman_collection.json   coleção com os testes de API
+  local.postman_environment.json          ambiente local (baseUrl)
 ```

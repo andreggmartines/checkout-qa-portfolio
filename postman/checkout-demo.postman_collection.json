@@ -1,0 +1,802 @@
+{
+  "info": {
+    "name": "Checkout Demo — API",
+    "description": "Testes de API do Checkout Demo (cenários API01 a API14 do plano de testes).\n\nRode em ordem: a pasta \"Preparação\" restaura os dados e algumas requisições dependem do pedido criado em API03.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Verificações aplicadas a todas as requisições",
+          "pm.test(\"Tempo de resposta abaixo de 1 segundo\", () => pm.expect(pm.response.responseTime).to.be.below(1000));",
+          "if (pm.response.code !== 204) {",
+          "  pm.test(\"Resposta em JSON\", () => pm.response.to.have.header(\"Content-Type\", \"application/json; charset=utf-8\"));",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "pedidoId",
+      "value": ""
+    },
+    {
+      "key": "chaveReembolso",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "00 - Preparação",
+      "item": [
+        {
+          "name": "Restaurar dados da loja",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/test/reset",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "test",
+                "reset"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 - Produtos",
+      "item": [
+        {
+          "name": "API01 - Listar produtos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const esquema = {",
+                  "  type: \"array\",",
+                  "  minItems: 1,",
+                  "  items: {",
+                  "    type: \"object\",",
+                  "    required: [\"id\", \"nome\", \"preco\", \"estoque\"],",
+                  "    properties: {",
+                  "      id: { type: \"integer\" },",
+                  "      nome: { type: \"string\", minLength: 1 },",
+                  "      preco: { type: \"number\", exclusiveMinimum: 0 },",
+                  "      estoque: { type: \"integer\", minimum: 0 }",
+                  "    }",
+                  "  }",
+                  "};",
+                  "pm.test(\"Contrato: lista de produtos com id, nome, preço e estoque\", () => pm.response.to.have.jsonSchema(esquema));",
+                  "pm.test(\"Catálogo tem 6 produtos\", () => pm.expect(pm.response.json()).to.have.lengthOf(6));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/produtos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "produtos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "API02 - Buscar produto inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Código de erro PRODUTO_NAO_ENCONTRADO\", () => {",
+                  "  const corpo = pm.response.json();",
+                  "  pm.expect(corpo.codigo).to.eql(\"PRODUTO_NAO_ENCONTRADO\");",
+                  "  pm.expect(corpo.mensagem).to.be.a(\"string\").and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/produtos/999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "produtos",
+                "999"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Pedidos",
+      "item": [
+        {
+          "name": "API03 - Criar pedido válido com Pix",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "const pedido = pm.response.json();",
+                  "pm.collectionVariables.set(\"pedidoId\", pedido.id);",
+                  "",
+                  "const esquema = {",
+                  "  type: \"object\",",
+                  "  required: [\"id\", \"status\", \"itens\", \"subtotal\", \"frete\", \"total\", \"saldoReembolsavel\", \"reembolsos\", \"historico\"],",
+                  "  properties: {",
+                  "    id: { type: \"string\", pattern: \"^PED-\\\\d{4}$\" },",
+                  "    status: { type: \"string\" },",
+                  "    itens: { type: \"array\", minItems: 1 },",
+                  "    subtotal: { type: \"number\" },",
+                  "    frete: { type: \"number\" },",
+                  "    total: { type: \"number\" },",
+                  "    reembolsos: { type: \"array\" }",
+                  "  }",
+                  "};",
+                  "pm.test(\"Contrato: pedido com os campos obrigatórios\", () => pm.response.to.have.jsonSchema(esquema));",
+                  "pm.test(\"Pedido criado como PAGO\", () => pm.expect(pedido.status).to.eql(\"PAGO\"));",
+                  "pm.test(\"Total = R$ 129,90 + frete de R$ 19,90\", () => {",
+                  "  pm.expect(pedido.subtotal).to.eql(129.9);",
+                  "  pm.expect(pedido.frete).to.eql(19.9);",
+                  "  pm.expect(pedido.total).to.eql(149.8);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [\n    {\n      \"produtoId\": 3,\n      \"quantidade\": 1\n    }\n  ],\n  \"cliente\": {\n    \"nome\": \"Ana Souza\",\n    \"email\": \"ana@exemplo.com\",\n    \"cep\": \"01310-100\"\n  },\n  \"pagamento\": {\n    \"metodo\": \"pix\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/pedidos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pedidos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "API04 - Criar pedido com carrinho vazio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Código de erro CARRINHO_VAZIO\", () => {",
+                  "  const corpo = pm.response.json();",
+                  "  pm.expect(corpo.codigo).to.eql(\"CARRINHO_VAZIO\");",
+                  "  pm.expect(corpo.mensagem).to.be.a(\"string\").and.not.empty;",
+                  "  pm.expect(corpo.campo).to.eql(\"itens\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [],\n  \"cliente\": {\n    \"nome\": \"Ana Souza\",\n    \"email\": \"ana@exemplo.com\",\n    \"cep\": \"01310-100\"\n  },\n  \"pagamento\": {\n    \"metodo\": \"pix\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/pedidos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pedidos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "API05 - Criar pedido acima do estoque",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Código de erro ESTOQUE_INSUFICIENTE\", () => {",
+                  "  const corpo = pm.response.json();",
+                  "  pm.expect(corpo.codigo).to.eql(\"ESTOQUE_INSUFICIENTE\");",
+                  "  pm.expect(corpo.mensagem).to.be.a(\"string\").and.not.empty;",
+                  "  pm.expect(corpo.campo).to.eql(\"quantidade\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [\n    {\n      \"produtoId\": 5,\n      \"quantidade\": 1\n    }\n  ],\n  \"cliente\": {\n    \"nome\": \"Ana Souza\",\n    \"email\": \"ana@exemplo.com\",\n    \"cep\": \"01310-100\"\n  },\n  \"pagamento\": {\n    \"metodo\": \"pix\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/pedidos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pedidos"
+              ]
+            },
+            "description": "O produto 5 (Cafeteira Elétrica) está com estoque zero."
+          }
+        },
+        {
+          "name": "API06 - Criar pedido com cartão recusado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 402\", () => pm.response.to.have.status(402));",
+                  "pm.test(\"Código de erro PAGAMENTO_RECUSADO\", () => {",
+                  "  const corpo = pm.response.json();",
+                  "  pm.expect(corpo.codigo).to.eql(\"PAGAMENTO_RECUSADO\");",
+                  "  pm.expect(corpo.mensagem).to.be.a(\"string\").and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [\n    {\n      \"produtoId\": 2,\n      \"quantidade\": 1\n    }\n  ],\n  \"cliente\": {\n    \"nome\": \"Ana Souza\",\n    \"email\": \"ana@exemplo.com\",\n    \"cep\": \"01310-100\"\n  },\n  \"pagamento\": {\n    \"metodo\": \"cartao\",\n    \"numeroCartao\": \"4000000000000002\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/pedidos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pedidos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "API07 - Criar pedido com e-mail inválido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Código de erro DADOS_INVALIDOS\", () => {",
+                  "  const corpo = pm.response.json();",
+                  "  pm.expect(corpo.codigo).to.eql(\"DADOS_INVALIDOS\");",
+                  "  pm.expect(corpo.mensagem).to.be.a(\"string\").and.not.empty;",
+                  "  pm.expect(corpo.campo).to.eql(\"email\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [\n    {\n      \"produtoId\": 2,\n      \"quantidade\": 1\n    }\n  ],\n  \"cliente\": {\n    \"nome\": \"Ana Souza\",\n    \"email\": \"ana.exemplo.com\",\n    \"cep\": \"01310-100\"\n  },\n  \"pagamento\": {\n    \"metodo\": \"pix\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/pedidos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pedidos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "API14 - Consultar pedido inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Código de erro PEDIDO_NAO_ENCONTRADO\", () => {",
+                  "  const corpo = pm.response.json();",
+                  "  pm.expect(corpo.codigo).to.eql(\"PEDIDO_NAO_ENCONTRADO\");",
+                  "  pm.expect(corpo.mensagem).to.be.a(\"string\").and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/pedidos/PED-9999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pedidos",
+                "PED-9999"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Pós-venda",
+      "item": [
+        {
+          "name": "API08 - Reembolsar pedido ainda não entregue",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Código de erro REEMBOLSO_NAO_PERMITIDO\", () => {",
+                  "  const corpo = pm.response.json();",
+                  "  pm.expect(corpo.codigo).to.eql(\"REEMBOLSO_NAO_PERMITIDO\");",
+                  "  pm.expect(corpo.mensagem).to.be.a(\"string\").and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valor\": 10,\n  \"motivo\": \"Teste antes da entrega\",\n  \"chave\": \"{{$guid}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/pedidos/{{pedidoId}}/reembolsos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pedidos",
+                "{{pedidoId}}",
+                "reembolsos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Transportadora: pedido enviado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Status ENVIADO\", () => pm.expect(pm.response.json().status).to.eql(\"ENVIADO\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/pedidos/{{pedidoId}}/avancar-entrega",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pedidos",
+                "{{pedidoId}}",
+                "avancar-entrega"
+              ]
+            }
+          }
+        },
+        {
+          "name": "API13 - Cancelar pedido já enviado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Código de erro CANCELAMENTO_NAO_PERMITIDO\", () => {",
+                  "  const corpo = pm.response.json();",
+                  "  pm.expect(corpo.codigo).to.eql(\"CANCELAMENTO_NAO_PERMITIDO\");",
+                  "  pm.expect(corpo.mensagem).to.be.a(\"string\").and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/pedidos/{{pedidoId}}/cancelamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pedidos",
+                "{{pedidoId}}",
+                "cancelamento"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Transportadora: pedido entregue",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Status ENTREGUE\", () => pm.expect(pm.response.json().status).to.eql(\"ENTREGUE\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/pedidos/{{pedidoId}}/avancar-entrega",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pedidos",
+                "{{pedidoId}}",
+                "avancar-entrega"
+              ]
+            }
+          }
+        },
+        {
+          "name": "API09 - Reembolso parcial válido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "const { reembolso, pedido } = pm.response.json();",
+                  "pm.test(\"Reembolso de R$ 50,00 registrado\", () => pm.expect(reembolso.valor).to.eql(50));",
+                  "pm.test(\"Saldo reduzido para R$ 99,80\", () => pm.expect(pedido.saldoReembolsavel).to.eql(99.8));",
+                  "pm.test(\"Pedido continua ENTREGUE\", () => pm.expect(pedido.status).to.eql(\"ENTREGUE\"));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Gera uma chave nova e guarda para reutilizar em API10",
+                  "pm.collectionVariables.set(\"chaveReembolso\", pm.variables.replaceIn(\"{{$guid}}\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valor\": 50,\n  \"motivo\": \"Produto chegou com avaria\",\n  \"chave\": \"{{chaveReembolso}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/pedidos/{{pedidoId}}/reembolsos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pedidos",
+                "{{pedidoId}}",
+                "reembolsos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "API10 - Repetir a mesma solicitação de reembolso",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const { pedido } = pm.response.json();",
+                  "pm.test(\"Nenhum reembolso novo foi criado\", () => pm.expect(pedido.reembolsos).to.have.lengthOf(1));",
+                  "pm.test(\"Saldo continua R$ 99,80\", () => pm.expect(pedido.saldoReembolsavel).to.eql(99.8));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valor\": 50,\n  \"motivo\": \"Produto chegou com avaria\",\n  \"chave\": \"{{chaveReembolso}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/pedidos/{{pedidoId}}/reembolsos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pedidos",
+                "{{pedidoId}}",
+                "reembolsos"
+              ]
+            },
+            "description": "Mesma chave da API09: simula clique duplo ou reenvio da requisição. Não pode gerar um segundo reembolso."
+          }
+        },
+        {
+          "name": "API11 - Reembolso acima do saldo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Código de erro VALOR_INVALIDO\", () => {",
+                  "  const corpo = pm.response.json();",
+                  "  pm.expect(corpo.codigo).to.eql(\"VALOR_INVALIDO\");",
+                  "  pm.expect(corpo.mensagem).to.be.a(\"string\").and.not.empty;",
+                  "  pm.expect(corpo.campo).to.eql(\"valor\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valor\": 99.81,\n  \"motivo\": \"Valor acima do saldo\",\n  \"chave\": \"{{$guid}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/pedidos/{{pedidoId}}/reembolsos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pedidos",
+                "{{pedidoId}}",
+                "reembolsos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "API12 - Reembolso do saldo total",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "const { pedido } = pm.response.json();",
+                  "pm.test(\"Saldo zerado\", () => pm.expect(pedido.saldoReembolsavel).to.eql(0));",
+                  "pm.test(\"Pedido muda para REEMBOLSADO\", () => pm.expect(pedido.status).to.eql(\"REEMBOLSADO\"));",
+                  "pm.test(\"Total reembolsado igual ao total pago\", () => pm.expect(pedido.valorReembolsado).to.eql(pedido.total));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valor\": 99.8,\n  \"motivo\": \"Devolução do restante\",\n  \"chave\": \"{{$guid}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/pedidos/{{pedidoId}}/reembolsos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pedidos",
+                "{{pedidoId}}",
+                "reembolsos"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
