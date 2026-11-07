@@ -51,8 +51,8 @@ jobs:
       - name: Subir a loja e rodar os testes Cypress
         uses: cypress-io/github-action@v6
         with:
-          start: npm start
-          wait-on: http://localhost:3000
+          # Mesmo comando usado localmente: sobe a loja, espera responder e roda o Cypress.
+          command: npm run test:e2e
 
       - name: Guardar as capturas de tela das falhas
         if: failure()
