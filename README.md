@@ -1,5 +1,7 @@
 # Checkout Demo — Portfólio de QA
 
+[![Testes](https://github.com/andreggmartines/checkout-qa-portfolio/actions/workflows/testes.yml/badge.svg)](https://github.com/andreggmartines/checkout-qa-portfolio/actions/workflows/testes.yml)
+
 Projeto de portfólio de **Quality Assurance** de André Martines.
 
 Uma loja virtual de artigos para casa, criada só para ser testada. O foco é o fluxo de **compra, estoque, pagamento, entrega, cancelamento e reembolso parcial**, parecido com o que existe num e-commerce de varejo real.
@@ -11,7 +13,7 @@ Uma loja virtual de artigos para casa, criada só para ser testada. O foco é o 
 > - [x] [Cenários em Gherkin (BDD)](docs/cenarios/)
 > - [x] [Testes E2E com Cypress](cypress/e2e/)
 > - [x] [Testes de API com Postman/Newman](postman/)
-> - [ ] Execução em CI com GitHub Actions
+> - [x] [Execução em CI com GitHub Actions](.github/workflows/testes.yml)
 > - [ ] Bug reports de exemplo
 
 ## Como rodar a loja
@@ -59,6 +61,17 @@ Resultado esperado: **21 testes passam e 3 falham** (CT08, CT20 e CT24), um para
 - Preparação pela API e verificação pela interface: nos testes de pós-venda, o pedido é criado com `cy.request()` e só o comportamento em teste passa pela tela.
 - Comandos customizados em [`cypress/support/commands.js`](cypress/support/commands.js) e massa de dados em [`cypress/fixtures`](cypress/fixtures/).
 - Testes de valor-limite (frete em exatamente R$ 200,00, reembolso R$ 0,01 acima do saldo).
+
+## Integração contínua (GitHub Actions)
+
+O workflow [`testes.yml`](.github/workflows/testes.yml) roda a cada push na `main`, em todo pull request e também sob demanda. São dois jobs em paralelo:
+
+| Job | O que faz |
+|---|---|
+| **API (Postman/Newman)** | Sobe a loja, roda a coleção de API e guarda o relatório JUnit |
+| **E2E (Cypress)** | Sobe a loja, roda os 24 testes E2E e, se algo falhar, guarda as capturas de tela |
+
+O selo no topo deste README mostra o resultado da última execução. Os detalhes de cada execução ficam na aba [Actions](https://github.com/andreggmartines/checkout-qa-portfolio/actions).
 
 ## Testes de API com Postman/Newman
 

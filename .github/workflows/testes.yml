@@ -1,0 +1,62 @@
+name: Testes
+
+# Roda a suíte de regressão a cada push na main, em pull requests e sob demanda.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  api:
+    name: API (Postman/Newman)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Configurar o Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências (sem o binário do Cypress)
+        run: npm ci
+        env:
+          CYPRESS_INSTALL_BINARY: 0
+
+      - name: Subir a loja e rodar a coleção de API
+        run: npm run test:api
+
+      - name: Guardar o relatório do Newman
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-newman
+          path: reports/newman.xml
+
+  e2e:
+    name: E2E (Cypress)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Configurar o Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Subir a loja e rodar os testes Cypress
+        uses: cypress-io/github-action@v6
+        with:
+          start: npm start
+          wait-on: http://localhost:3000
+
+      - name: Guardar as capturas de tela das falhas
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-screenshots
+          path: cypress/screenshots
