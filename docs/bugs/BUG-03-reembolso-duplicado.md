@@ -63,6 +63,20 @@ Falha registrada pelo Newman na API10:
                     expected 49.8 to deeply equal 99.8
 ```
 
+Validação no banco (`npm run sql:validar`, consulta **V04**): a mesma chave de solicitação aparece em dois reembolsos.
+
+```sql
+SELECT pedido_id, chave, COUNT(*) AS vezes, SUM(valor_centavos) AS total_centavos
+FROM reembolsos
+WHERE chave IS NOT NULL
+GROUP BY pedido_id, chave
+HAVING COUNT(*) > 1;
+```
+
+| pedido_id | chave | vezes | total_centavos |
+|---|---|---|---|
+| PED-0002 | 3f1c2a9e-0000-4000-8000-000000000001 | 2 | 10000 |
+
 ## Impacto
 
 - **Prejuízo financeiro direto:** a empresa devolve ao cliente mais do que deveria.
@@ -73,7 +87,7 @@ Falha registrada pelo Newman na API10:
 
 O problema tem duas partes, e as duas precisam ser corrigidas:
 
-1. **API (causa principal):** a chave da solicitação não está sendo verificada, então a operação não é idempotente. A mesma chave precisa devolver o reembolso já criado.
+1. **API (causa principal):** a chave da solicitação não está sendo verificada, então a operação não é idempotente. A mesma chave precisa devolver o reembolso já criado. Como proteção extra no banco, um índice único em `(pedido_id, chave)` impediria a gravação duplicada.
 2. **Tela (proteção extra):** o botão deve ser desabilitado enquanto a requisição está em andamento.
 
 Corrigir só a tela não resolve: a requisição repetida pode vir de reenvio automático, de outra aba ou de uma integração.

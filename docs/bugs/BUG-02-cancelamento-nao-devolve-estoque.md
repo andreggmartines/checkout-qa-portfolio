@@ -46,6 +46,21 @@ Consulta à API depois do cancelamento (`GET /api/produtos/2`):
 { "id": 2, "nome": "Conjunto de Toalhas de Banho", "preco": 89.9, "estoque": 8 }
 ```
 
+Validação no banco (`npm run sql:validar`, consulta **V06**): o pedido cancelado não tem nenhuma movimentação de devolução ao estoque.
+
+```sql
+SELECT p.id AS pedido_id, i.produto_id, i.nome_produto, i.quantidade
+FROM pedidos p
+JOIN itens_pedido i ON i.pedido_id = p.id
+LEFT JOIN movimentacoes_estoque m
+       ON m.pedido_id = p.id AND m.produto_id = i.produto_id AND m.tipo = 'DEVOLUCAO'
+WHERE p.status = 'CANCELADO' AND m.id IS NULL;
+```
+
+| pedido_id | produto_id | nome_produto | quantidade |
+|---|---|---|---|
+| PED-0001 | 2 | Conjunto de Toalhas de Banho | 2 |
+
 ## Impacto
 
 - **Perda de vendas:** unidades disponíveis ficam bloqueadas e, com cancelamentos repetidos, o produto pode aparecer como esgotado tendo estoque físico.

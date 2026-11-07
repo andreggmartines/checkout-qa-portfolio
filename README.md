@@ -14,6 +14,7 @@ Uma loja virtual de artigos para casa, criada só para ser testada. O foco é o 
 | 24 cenários E2E em Gherkin (BDD), rastreáveis até os riscos | [docs/cenarios](docs/cenarios/) |
 | 24 testes E2E automatizados em Cypress/JavaScript | [cypress/e2e](cypress/e2e/) |
 | 14 cenários de API no Postman, com 74 verificações rodando no Newman | [postman](postman/) |
+| 10 consultas SQL de validação de dados, também usadas dentro dos testes E2E | [sql](sql/) |
 | Execução automática a cada push no GitHub Actions | [.github/workflows/testes.yml](.github/workflows/testes.yml) |
 | 3 bug reports com passos, evidências, impacto e plano de reteste | [docs/bugs](docs/bugs/) |
 
@@ -23,13 +24,13 @@ Uma loja virtual de artigos para casa, criada só para ser testada. O foco é o 
 |---|---|
 | Frete cobrado em compra de exatamente R$ 200,00 | CT08 |
 | Cancelamento não devolve os itens ao estoque | CT20 |
-| Clique duplo gera reembolso em duplicidade | CT24 e API10 |
+| Clique duplo gera reembolso em duplicidade | CT24, API10 e consulta SQL V04 |
 
 > Uso de IA: usei IA como apoio para rascunhos de código e documentação. A cobertura, a lógica dos testes e o código foram revisados por mim.
 
 ## Como rodar a loja
 
-Pré-requisito: [Node.js](https://nodejs.org/) 20 ou mais recente. A loja não tem dependências.
+Pré-requisito: [Node.js](https://nodejs.org/) 22.13 ou mais recente. A loja não tem dependências: o banco de dados é SQLite, que já vem embutido no Node.
 
 ```bash
 npm start
@@ -72,6 +73,7 @@ Resultado esperado: **21 testes passam e 3 falham** (CT08, CT20 e CT24), um para
 - Preparação pela API e verificação pela interface: nos testes de pós-venda, o pedido é criado com `cy.request()` e só o comportamento em teste passa pela tela.
 - Comandos customizados em [`cypress/support/commands.js`](cypress/support/commands.js) e massa de dados em [`cypress/fixtures`](cypress/fixtures/).
 - Testes de valor-limite (frete em exatamente R$ 200,00, reembolso R$ 0,01 acima do saldo).
+- Validação em camadas: CT20 e CT24 conferem a tela e também o banco de dados, com SQL (`cy.consultarBanco()`).
 
 ## Integração contínua (GitHub Actions)
 
@@ -79,7 +81,7 @@ O workflow [`testes.yml`](.github/workflows/testes.yml) roda a cada push na `mai
 
 | Job | O que faz |
 |---|---|
-| **API (Postman/Newman)** | Sobe a loja, roda a coleção de API e guarda o relatório JUnit |
+| **API (Postman/Newman)** | Sobe a loja, roda a coleção de API, valida os dados gravados com SQL e guarda o relatório JUnit |
 | **E2E (Cypress)** | Sobe a loja, roda os 24 testes E2E e, se algo falhar, guarda as capturas de tela |
 
 O selo no topo deste README mostra o resultado da última execução. Os detalhes de cada execução ficam na aba [Actions](https://github.com/andreggmartines/checkout-qa-portfolio/actions).
@@ -104,6 +106,19 @@ Para abrir no Postman: **Import** → selecione os dois arquivos da pasta `postm
 - Relatório JUnit gerado em `reports/newman.xml`, usado no CI.
 
 No modo com bugs, a API10 falha (o reembolso é duplicado) e, em consequência, a API12 também falha, porque o saldo já foi consumido pelo reembolso indevido.
+
+## Validação de dados com SQL
+
+A loja grava tudo num banco **SQLite** (`data/checkout.db`). O arquivo [`sql/consultas-validacao.sql`](sql/consultas-validacao.sql) tem 10 consultas que procuram dados inconsistentes, cada uma ligada a um risco do plano. Se uma consulta não devolve linhas, os dados estão corretos.
+
+```bash
+npm run sql:validar                          # roda as 10 validações no banco
+npm run sql -- "SELECT * FROM produtos"      # roda uma consulta qualquer
+```
+
+Exemplo: depois de `npm run test:api:bugs`, a validação **V04** encontra a mesma solicitação de reembolso gravada duas vezes (o BUG-03 visto direto no banco).
+
+O guia [`sql/README.md`](sql/README.md) explica as tabelas e cada consulta, linha por linha, e traz exercícios.
 
 <details>
 <summary>Problemas para rodar o Cypress no Windows?</summary>
@@ -142,7 +157,7 @@ npx cypress run --browser edge   # em outro terminal
 | POST | `/api/pedidos/:id/avancar-entrega` | Simula a transportadora avançando o status |
 | POST | `/api/pedidos/:id/cancelamento` | Cancela um pedido ainda não enviado |
 | POST | `/api/pedidos/:id/reembolsos` | Solicita reembolso parcial (`valor`, `motivo`, `chave`) |
-| POST | `/api/test/reset` | Restaura produtos e estoque e apaga os pedidos (apoio aos testes) |
+| POST | `/api/test/reset` | Restaura produtos e estoque e apaga os pedidos no banco (apoio aos testes) |
 
 Erros retornam um JSON no formato `{ "codigo": "...", "mensagem": "...", "campo": "..." }`, com status HTTP 400, 402, 404, 409 ou 422, conforme o caso.
 
@@ -162,7 +177,8 @@ POST /api/pedidos
 ```
 app/
   server.js        servidor HTTP e rotas da API
-  store.js         regras de negócio e dados em memória
+  banco.js         banco SQLite: tabelas e conexão
+  store.js         regras de negócio
   public/          telas da loja (catálogo, checkout e pedido)
 docs/
   plano-de-testes.md   riscos, estratégia e matriz de cenários
@@ -175,4 +191,8 @@ cypress/
 postman/
   checkout-demo.postman_collection.json   coleção com os testes de API
   local.postman_environment.json          ambiente local (baseUrl)
+sql/
+  consultas-validacao.sql   consultas que procuram dados inconsistentes
+  executar.js               roda as consultas no banco (somente leitura)
+  README.md                 guia de estudo das consultas
 ```
