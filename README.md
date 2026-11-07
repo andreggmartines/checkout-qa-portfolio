@@ -2,19 +2,30 @@
 
 [![Testes](https://github.com/andreggmartines/checkout-qa-portfolio/actions/workflows/testes.yml/badge.svg)](https://github.com/andreggmartines/checkout-qa-portfolio/actions/workflows/testes.yml)
 
-Projeto de portfólio de **Quality Assurance** de André Martines.
+Projeto de portfólio de **Quality Assurance** de [André Martines](https://www.linkedin.com/in/andreggmartines/).
 
 Uma loja virtual de artigos para casa, criada só para ser testada. O foco é o fluxo de **compra, estoque, pagamento, entrega, cancelamento e reembolso parcial**, parecido com o que existe num e-commerce de varejo real.
 
-> 🚧 **Em construção.** Etapas do projeto:
->
-> - [x] Aplicação alvo (loja + API REST)
-> - [x] [Plano de testes baseado em risco](docs/plano-de-testes.md)
-> - [x] [Cenários em Gherkin (BDD)](docs/cenarios/)
-> - [x] [Testes E2E com Cypress](cypress/e2e/)
-> - [x] [Testes de API com Postman/Newman](postman/)
-> - [x] [Execução em CI com GitHub Actions](.github/workflows/testes.yml)
-> - [ ] Bug reports de exemplo
+## Em resumo
+
+| Entrega | Onde está |
+|---|---|
+| Plano de testes baseado em risco: 10 riscos priorizados por probabilidade × impacto | [docs/plano-de-testes.md](docs/plano-de-testes.md) |
+| 24 cenários E2E em Gherkin (BDD), rastreáveis até os riscos | [docs/cenarios](docs/cenarios/) |
+| 24 testes E2E automatizados em Cypress/JavaScript | [cypress/e2e](cypress/e2e/) |
+| 14 cenários de API no Postman, com 74 verificações rodando no Newman | [postman](postman/) |
+| Execução automática a cada push no GitHub Actions | [.github/workflows/testes.yml](.github/workflows/testes.yml) |
+| 3 bug reports com passos, evidências, impacto e plano de reteste | [docs/bugs](docs/bugs/) |
+
+**Os testes realmente pegam bugs.** A loja tem um modo com três defeitos conhecidos. Contra ele, a suíte falha exatamente nos cenários certos:
+
+| Bug | Detectado por |
+|---|---|
+| Frete cobrado em compra de exatamente R$ 200,00 | CT08 |
+| Cancelamento não devolve os itens ao estoque | CT20 |
+| Clique duplo gera reembolso em duplicidade | CT24 e API10 |
+
+> Uso de IA: usei IA como apoio para rascunhos de código e documentação. A cobertura, a lógica dos testes e o código foram revisados por mim.
 
 ## Como rodar a loja
 
@@ -156,6 +167,7 @@ app/
 docs/
   plano-de-testes.md   riscos, estratégia e matriz de cenários
   cenarios/            cenários em Gherkin (BDD)
+  bugs/                bug reports com evidências
 cypress/
   e2e/             testes E2E (CT01 a CT24)
   support/         comandos customizados
