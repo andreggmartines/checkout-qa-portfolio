@@ -7,7 +7,7 @@ Uma loja virtual de artigos para casa, criada só para ser testada. O foco é o 
 > 🚧 **Em construção.** Etapas do projeto:
 >
 > - [x] Aplicação alvo (loja + API REST)
-> - [ ] Plano de testes baseado em risco
+> - [x] [Plano de testes baseado em risco](docs/plano-de-testes.md)
 > - [ ] Cenários em Gherkin (BDD)
 > - [ ] Testes E2E com Cypress
 > - [ ] Testes de API com Postman/Newman
