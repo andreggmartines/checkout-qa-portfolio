@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Checkout Demo — Finalizar compra</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-pagina="checkout">
+  <header>
+    <div><a href="/">Checkout Demo</a><span class="selo-bugs oculto" data-cy="selo-bugs">modo com bugs</span></div>
+    <a href="/" data-cy="link-voltar">Voltar à loja</a>
+  </header>
+  <main>
+    <div class="layout">
+      <section class="cartao">
+        <h1>Finalizar compra</h1>
+        <div class="mensagem erro oculto" data-cy="mensagem-erro"></div>
+        <form data-cy="form-checkout" novalidate>
+          <div class="campo">
+            <label for="nome">Nome completo</label>
+            <input type="text" id="nome" name="nome" data-cy="campo-nome" autocomplete="name">
+          </div>
+          <div class="campo">
+            <label for="email">E-mail</label>
+            <input type="email" id="email" name="email" data-cy="campo-email" autocomplete="email">
+          </div>
+          <div class="campo">
+            <label for="cep">CEP</label>
+            <input type="text" id="cep" name="cep" data-cy="campo-cep" inputmode="numeric" placeholder="00000-000">
+          </div>
+          <fieldset>
+            <legend>Forma de pagamento</legend>
+            <label><input type="radio" name="metodo" value="cartao" data-cy="pagamento-cartao" checked> Cartão de crédito</label>
+            <label><input type="radio" name="metodo" value="pix" data-cy="pagamento-pix"> Pix</label>
+          </fieldset>
+          <div class="campo" data-cy="bloco-cartao">
+            <label for="numeroCartao">Número do cartão</label>
+            <input type="text" id="numeroCartao" name="numeroCartao" data-cy="campo-cartao" inputmode="numeric">
+          </div>
+          <button type="submit" data-cy="botao-pagar">Pagar e confirmar pedido</button>
+        </form>
+      </section>
+      <aside class="cartao">
+        <h2>Resumo</h2>
+        <div data-cy="itens-resumo"></div>
+        <div data-cy="resumo-checkout"></div>
+      </aside>
+    </div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

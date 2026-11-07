@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Checkout Demo — Meu pedido</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-pagina="pedido">
+  <header>
+    <div><a href="/">Checkout Demo</a><span class="selo-bugs oculto" data-cy="selo-bugs">modo com bugs</span></div>
+    <a href="/" data-cy="link-voltar">Voltar à loja</a>
+  </header>
+  <main>
+    <div class="mensagem erro oculto" data-cy="mensagem-erro"></div>
+    <div class="mensagem sucesso oculto" data-cy="mensagem-sucesso"></div>
+    <div class="layout" data-cy="detalhe-pedido">
+      <section class="cartao">
+        <h1>Pedido <span data-cy="numero-pedido"></span></h1>
+        <p>Status: <span class="status" data-cy="status-pedido"></span></p>
+        <table>
+          <thead><tr><th>Produto</th><th>Qtd.</th><th>Subtotal</th></tr></thead>
+          <tbody data-cy="itens-pedido"></tbody>
+        </table>
+        <div data-cy="totais-pedido" style="margin-top:12px"></div>
+        <div class="acoes">
+          <button type="button" class="perigo oculto" data-cy="botao-cancelar">Cancelar pedido</button>
+          <button type="button" class="secundario oculto" data-cy="botao-avancar-entrega">Simular transportadora: avançar entrega</button>
+        </div>
+      </section>
+      <aside>
+        <div class="cartao">
+          <h2>Acompanhamento</h2>
+          <ol data-cy="historico-pedido"></ol>
+        </div>
+        <div class="cartao oculto" data-cy="bloco-reembolso" style="margin-top:16px">
+          <h2>Solicitar reembolso</h2>
+          <p>Saldo reembolsável: <strong data-cy="saldo-reembolsavel"></strong></p>
+          <form data-cy="form-reembolso" novalidate>
+            <div class="campo">
+              <label for="valor">Valor (R$)</label>
+              <input type="number" id="valor" name="valor" step="0.01" min="0.01" data-cy="campo-valor-reembolso">
+            </div>
+            <div class="campo">
+              <label for="motivo">Motivo</label>
+              <input type="text" id="motivo" name="motivo" data-cy="campo-motivo-reembolso">
+            </div>
+            <button type="submit" data-cy="botao-reembolso">Solicitar reembolso</button>
+          </form>
+        </div>
+        <div class="cartao" style="margin-top:16px">
+          <h2>Reembolsos</h2>
+          <ul data-cy="lista-reembolsos"></ul>
+        </div>
+      </aside>
+    </div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

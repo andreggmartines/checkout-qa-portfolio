@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Checkout Demo — Loja</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-pagina="catalogo">
+  <header>
+    <div><a href="/">Checkout Demo</a><span class="selo-bugs oculto" data-cy="selo-bugs">modo com bugs</span></div>
+    <span>Carrinho: <strong data-cy="contador-carrinho">0</strong></span>
+  </header>
+  <main>
+    <div class="layout">
+      <section>
+        <h1>Artigos para casa</h1>
+        <div class="grade" data-cy="lista-produtos"></div>
+      </section>
+      <aside class="cartao" data-cy="carrinho">
+        <h2>Seu carrinho</h2>
+        <div class="mensagem erro oculto" data-cy="mensagem-carrinho"></div>
+        <div data-cy="itens-carrinho"></div>
+        <div data-cy="resumo-carrinho"></div>
+        <button type="button" data-cy="botao-finalizar" disabled>Finalizar compra</button>
+      </aside>
+    </div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

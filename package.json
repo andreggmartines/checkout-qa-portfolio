@@ -1,0 +1,15 @@
+{
+  "name": "checkout-qa-portfolio",
+  "version": "1.0.0",
+  "description": "Portfólio de QA: loja de demonstração com plano de testes baseado em risco, testes E2E em Cypress e testes de API com Postman/Newman.",
+  "private": true,
+  "scripts": {
+    "start": "node app/server.js",
+    "start:bugs": "node app/server.js --bugs"
+  },
+  "author": "André Martines",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}
