@@ -52,6 +52,16 @@ describe('Pós-venda: entrega, cancelamento e reembolso', () => {
     cy.cardDoProduto('Conjunto de Toalhas de Banho').within(() => {
       cy.deveMostrar('produto-estoque', '10 em estoque');
     });
+
+    // Validação no banco: o estoque voltou e a devolução ficou registrada nas movimentações.
+    cy.consultarBanco('SELECT estoque FROM produtos WHERE id = ?', [2]).its('0.estoque').should('eq', 10);
+    cy.then(() =>
+      cy.consultarBanco(
+        `SELECT tipo, quantidade FROM movimentacoes_estoque
+         WHERE pedido_id = ? AND produto_id = ? AND tipo = 'DEVOLUCAO'`,
+        [idPedido, 2]
+      )
+    ).should('deep.equal', [{ tipo: 'DEVOLUCAO', quantidade: 2 }]);
   });
 
   it('CT21 - Não permite cancelar pedido que já foi enviado', () => {
@@ -101,5 +111,13 @@ describe('Pós-venda: entrega, cancelamento e reembolso', () => {
     cy.then(() => cy.buscarPedidoViaApi(idPedido)).its('reembolsos').should('have.length', 1);
     cy.dataCy('item-reembolso').should('have.length', 1);
     cy.deveMostrar('saldo-reembolsavel', 'R$ 149,70');
+
+    // Validação no banco: um único registro de reembolso, de R$ 50,00 (5000 centavos).
+    cy.then(() =>
+      cy.consultarBanco(
+        'SELECT COUNT(*) AS quantidade, SUM(valor_centavos) AS total FROM reembolsos WHERE pedido_id = ?',
+        [idPedido]
+      )
+    ).should('deep.equal', [{ quantidade: 1, total: 5000 }]);
   });
 });

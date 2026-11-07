@@ -53,8 +53,9 @@ Cada risco recebe uma nota de **probabilidade** e de **impacto** de 1 (baixo) a 
 |---|---|---|
 | Interface (E2E) | Cypress + JavaScript | Os 24 cenários da seção 5, simulando o cliente na loja |
 | API | Postman + Newman | Contratos, status HTTP, regras de negócio e erros, direto na API |
+| Dados | SQL (SQLite) | Consultas de validação que procuram inconsistências no banco, como reembolso duplicado e estoque não devolvido ([sql/](../sql/)) |
 | Exploratório | Manual | Sessões guiadas pelos riscos para achar o que os roteiros não preveem |
-| Regressão | GitHub Actions | Cypress e Newman executados a cada push e pull request |
+| Regressão | GitHub Actions | Cypress, Newman e validações SQL executados a cada push e pull request |
 
 Técnicas usadas para criar os cenários: **partição de equivalência**, **análise de valor-limite** (frete em exatamente R$ 200,00, quantidade igual ao estoque, reembolso igual ao saldo) e **transição de estados** (Pago → Enviado → Entregue → Reembolsado / Cancelado).
 

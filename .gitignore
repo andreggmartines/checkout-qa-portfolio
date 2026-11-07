@@ -7,3 +7,6 @@ reports/
 
 # Arquivos pessoais que não fazem parte do portfólio
 *.pdf
+
+# Banco SQLite gerado ao subir a loja
+data/

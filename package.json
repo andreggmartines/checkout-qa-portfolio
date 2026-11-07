@@ -12,12 +12,14 @@
     "test:e2e:bugs": "start-server-and-test start:bugs http://localhost:3000 cy:run",
     "api:run": "newman run postman/checkout-demo.postman_collection.json -e postman/local.postman_environment.json --reporters cli,junit --reporter-junit-export reports/newman.xml",
     "test:api": "start-server-and-test start http://localhost:3000 api:run",
-    "test:api:bugs": "start-server-and-test start:bugs http://localhost:3000 api:run"
+    "test:api:bugs": "start-server-and-test start:bugs http://localhost:3000 api:run",
+    "sql": "node sql/executar.js",
+    "sql:validar": "node sql/executar.js"
   },
   "author": "André Martines",
   "license": "MIT",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13"
   },
   "devDependencies": {
     "cypress": "^15.21.1",

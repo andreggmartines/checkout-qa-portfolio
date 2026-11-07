@@ -1,6 +1,8 @@
 // Regras de negócio da loja de demonstração "Checkout Demo".
-// Os dados ficam em memória e podem ser restaurados com reset().
+// Os dados ficam num banco SQLite (veja app/banco.js) e podem ser restaurados com reset().
 // Valores monetários são guardados em centavos para evitar erros de arredondamento.
+
+const { abrirBanco } = require('./banco');
 
 const FRETE_CENTAVOS = 1990;
 const FRETE_GRATIS_A_PARTIR_DE = 20000; // R$ 200,00
@@ -22,9 +24,8 @@ const PRODUTOS_INICIAIS = [
 // Ative com: npm run start:bugs
 let modoBugs = false;
 
-let produtos = [];
-let pedidos = [];
-let proximoPedido = 1;
+const db = abrirBanco();
+const agora = () => new Date().toISOString();
 
 class ErroNegocio extends Error {
   constructor(status, codigo, mensagem, campo) {
@@ -35,10 +36,64 @@ class ErroNegocio extends Error {
   }
 }
 
+// Executa várias operações como uma só: ou todas são gravadas, ou nenhuma.
+function transacao(fn) {
+  db.exec('BEGIN');
+  try {
+    const resultado = fn();
+    db.exec('COMMIT');
+    return resultado;
+  } catch (erro) {
+    db.exec('ROLLBACK');
+    throw erro;
+  }
+}
+
+// Consultas usadas pela loja (com parâmetros "?", que evitam SQL injection).
+const sql = {
+  produtos: db.prepare('SELECT * FROM produtos ORDER BY id'),
+  produto: db.prepare('SELECT * FROM produtos WHERE id = ?'),
+  inserirProduto: db.prepare('INSERT INTO produtos (id, nome, preco_centavos, estoque) VALUES (?, ?, ?, ?)'),
+  ajustarEstoque: db.prepare('UPDATE produtos SET estoque = estoque + ? WHERE id = ?'),
+  movimentar: db.prepare(
+    'INSERT INTO movimentacoes_estoque (produto_id, tipo, quantidade, pedido_id, em) VALUES (?, ?, ?, ?, ?)'
+  ),
+  contarPedidos: db.prepare('SELECT COUNT(*) AS total FROM pedidos'),
+  inserirPedido: db.prepare(`
+    INSERT INTO pedidos (id, status, cliente_nome, cliente_email, cliente_cep, pagamento_metodo, cartao_final,
+                         subtotal_centavos, frete_centavos, total_centavos, criado_em)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+  inserirItem: db.prepare(`
+    INSERT INTO itens_pedido (pedido_id, produto_id, nome_produto, quantidade, preco_unitario_centavos)
+    VALUES (?, ?, ?, ?, ?)`),
+  pedido: db.prepare('SELECT * FROM pedidos WHERE id = ?'),
+  itens: db.prepare('SELECT * FROM itens_pedido WHERE pedido_id = ? ORDER BY id'),
+  reembolsos: db.prepare('SELECT * FROM reembolsos WHERE pedido_id = ? ORDER BY id'),
+  reembolsoPorChave: db.prepare('SELECT * FROM reembolsos WHERE pedido_id = ? AND chave = ?'),
+  inserirReembolso: db.prepare(`
+    INSERT INTO reembolsos (pedido_id, codigo, valor_centavos, motivo, chave, criado_em)
+    VALUES (?, ?, ?, ?, ?, ?)`),
+  historico: db.prepare('SELECT status, em FROM historico_status WHERE pedido_id = ? ORDER BY id'),
+  mudarStatus: db.prepare('UPDATE pedidos SET status = ? WHERE id = ?'),
+  registrarStatus: db.prepare('INSERT INTO historico_status (pedido_id, status, em) VALUES (?, ?, ?)'),
+};
+
+// Apaga todos os pedidos e volta os produtos e o estoque aos valores iniciais.
 function reset() {
-  produtos = PRODUTOS_INICIAIS.map((p) => ({ ...p }));
-  pedidos = [];
-  proximoPedido = 1;
+  transacao(() => {
+    db.exec(`
+      DELETE FROM movimentacoes_estoque;
+      DELETE FROM historico_status;
+      DELETE FROM reembolsos;
+      DELETE FROM itens_pedido;
+      DELETE FROM pedidos;
+      DELETE FROM produtos;
+    `);
+    for (const p of PRODUTOS_INICIAIS) {
+      sql.inserirProduto.run(p.id, p.nome, p.precoCentavos, p.estoque);
+      sql.movimentar.run(p.id, 'CARGA_INICIAL', p.estoque, null, agora());
+    }
+  });
 }
 
 function ativarModoBugs(ativo) {
@@ -49,45 +104,47 @@ function emReais(centavos) {
   return Math.round(centavos) / 100;
 }
 
+// Converte as linhas do banco para o formato que a API devolve.
 function produtoPublico(p) {
-  return { id: p.id, nome: p.nome, preco: emReais(p.precoCentavos), estoque: p.estoque };
+  return { id: p.id, nome: p.nome, preco: emReais(p.preco_centavos), estoque: p.estoque };
 }
 
-function pedidoPublico(pedido) {
-  const reembolsadoCentavos = pedido.reembolsos.reduce((soma, r) => soma + r.valorCentavos, 0);
+function reembolsoPublico(r) {
+  return { id: r.codigo, valor: emReais(r.valor_centavos), motivo: r.motivo, criadoEm: r.criado_em };
+}
+
+function pedidoPublico(idPedido) {
+  const p = sql.pedido.get(idPedido);
+  const reembolsos = sql.reembolsos.all(idPedido);
+  const reembolsadoCentavos = reembolsos.reduce((soma, r) => soma + r.valor_centavos, 0);
   return {
-    id: pedido.id,
-    status: pedido.status,
-    cliente: pedido.cliente,
-    pagamento: pedido.pagamento,
-    itens: pedido.itens.map((i) => ({
-      produtoId: i.produtoId,
-      nome: i.nome,
+    id: p.id,
+    status: p.status,
+    cliente: { nome: p.cliente_nome, email: p.cliente_email, cep: p.cliente_cep },
+    pagamento: p.pagamento_metodo === 'cartao' ? { metodo: 'cartao', final: p.cartao_final } : { metodo: 'pix' },
+    itens: sql.itens.all(idPedido).map((i) => ({
+      produtoId: i.produto_id,
+      nome: i.nome_produto,
       quantidade: i.quantidade,
-      precoUnitario: emReais(i.precoCentavos),
-      subtotal: emReais(i.precoCentavos * i.quantidade),
+      precoUnitario: emReais(i.preco_unitario_centavos),
+      subtotal: emReais(i.preco_unitario_centavos * i.quantidade),
     })),
-    subtotal: emReais(pedido.subtotalCentavos),
-    frete: emReais(pedido.freteCentavos),
-    total: emReais(pedido.totalCentavos),
+    subtotal: emReais(p.subtotal_centavos),
+    frete: emReais(p.frete_centavos),
+    total: emReais(p.total_centavos),
     valorReembolsado: emReais(reembolsadoCentavos),
-    saldoReembolsavel: emReais(pedido.totalCentavos - reembolsadoCentavos),
-    reembolsos: pedido.reembolsos.map((r) => ({
-      id: r.id,
-      valor: emReais(r.valorCentavos),
-      motivo: r.motivo,
-      criadoEm: r.criadoEm,
-    })),
-    historico: pedido.historico,
+    saldoReembolsavel: emReais(p.total_centavos - reembolsadoCentavos),
+    reembolsos: reembolsos.map(reembolsoPublico),
+    historico: sql.historico.all(idPedido).map((h) => ({ status: h.status, em: h.em })),
   };
 }
 
 function listarProdutos() {
-  return produtos.map(produtoPublico);
+  return sql.produtos.all().map(produtoPublico);
 }
 
 function buscarProduto(id) {
-  const produto = produtos.find((p) => p.id === Number(id));
+  const produto = sql.produto.get(Number(id) || 0);
   if (!produto) throw new ErroNegocio(404, 'PRODUTO_NAO_ENCONTRADO', 'Produto não encontrado.');
   return produtoPublico(produto);
 }
@@ -137,7 +194,7 @@ function criarPedido({ itens, cliente, pagamento } = {}) {
 
   // Valida todos os itens antes de mexer no estoque.
   const linhas = itens.map((item) => {
-    const produto = produtos.find((p) => p.id === Number(item.produtoId));
+    const produto = sql.produto.get(Number(item.produtoId) || 0);
     if (!produto) throw new ErroNegocio(404, 'PRODUTO_NAO_ENCONTRADO', 'Produto não encontrado.', 'produtoId');
     const quantidade = Number(item.quantidade);
     if (!Number.isInteger(quantidade) || quantidade < 1 || quantidade > QUANTIDADE_MAXIMA_POR_ITEM) {
@@ -146,7 +203,7 @@ function criarPedido({ itens, cliente, pagamento } = {}) {
     return { produto, quantidade };
   });
 
-  for (const { produto, quantidade } of linhas) {
+  for (const { produto } of linhas) {
     const totalPedido = linhas.filter((l) => l.produto.id === produto.id).reduce((s, l) => s + l.quantidade, 0);
     if (totalPedido > produto.estoque) {
       throw new ErroNegocio(409, 'ESTOQUE_INSUFICIENTE', `Estoque insuficiente para "${produto.nome}".`, 'quantidade');
@@ -156,47 +213,41 @@ function criarPedido({ itens, cliente, pagamento } = {}) {
   const clienteValido = validarCliente(cliente);
   const pagamentoAprovado = processarPagamento(pagamento);
 
-  for (const { produto, quantidade } of linhas) produto.estoque -= quantidade;
-
-  const itensPedido = linhas.map(({ produto, quantidade }) => ({
-    produtoId: produto.id,
-    nome: produto.nome,
-    quantidade,
-    precoCentavos: produto.precoCentavos,
-  }));
-  const subtotalCentavos = itensPedido.reduce((s, i) => s + i.precoCentavos * i.quantidade, 0);
+  const subtotalCentavos = linhas.reduce((s, l) => s + l.produto.preco_centavos * l.quantidade, 0);
   const freteCentavos = calcularFrete(subtotalCentavos);
 
-  const pedido = {
-    id: `PED-${String(proximoPedido++).padStart(4, '0')}`,
-    status: 'PAGO',
-    cliente: clienteValido,
-    pagamento: pagamentoAprovado,
-    itens: itensPedido,
-    subtotalCentavos,
-    freteCentavos,
-    totalCentavos: subtotalCentavos + freteCentavos,
-    reembolsos: [],
-    chavesReembolso: new Map(),
-    historico: [{ status: 'PAGO', em: new Date().toISOString() }],
-  };
-  pedidos.push(pedido);
-  return pedidoPublico(pedido);
+  // Pedido, itens, baixa de estoque e histórico são gravados juntos.
+  const idPedido = transacao(() => {
+    const id = `PED-${String(sql.contarPedidos.get().total + 1).padStart(4, '0')}`;
+    sql.inserirPedido.run(
+      id, 'PAGO', clienteValido.nome, clienteValido.email, clienteValido.cep,
+      pagamentoAprovado.metodo, pagamentoAprovado.final ?? null,
+      subtotalCentavos, freteCentavos, subtotalCentavos + freteCentavos, agora()
+    );
+    for (const { produto, quantidade } of linhas) {
+      sql.inserirItem.run(id, produto.id, produto.nome, quantidade, produto.preco_centavos);
+      sql.ajustarEstoque.run(-quantidade, produto.id);
+      sql.movimentar.run(produto.id, 'VENDA', -quantidade, id, agora());
+    }
+    sql.registrarStatus.run(id, 'PAGO', agora());
+    return id;
+  });
+  return pedidoPublico(idPedido);
 }
 
 function encontrarPedido(id) {
-  const pedido = pedidos.find((p) => p.id === id);
+  const pedido = sql.pedido.get(String(id));
   if (!pedido) throw new ErroNegocio(404, 'PEDIDO_NAO_ENCONTRADO', 'Pedido não encontrado.');
   return pedido;
 }
 
 function buscarPedido(id) {
-  return pedidoPublico(encontrarPedido(id));
+  return pedidoPublico(encontrarPedido(id).id);
 }
 
-function mudarStatus(pedido, status) {
-  pedido.status = status;
-  pedido.historico.push({ status, em: new Date().toISOString() });
+function mudarStatus(idPedido, status) {
+  sql.mudarStatus.run(status, idPedido);
+  sql.registrarStatus.run(idPedido, status, agora());
 }
 
 // Simula a atualização enviada pela transportadora: PAGO -> ENVIADO -> ENTREGUE.
@@ -206,8 +257,8 @@ function avancarEntrega(id) {
   if (!proximo) {
     throw new ErroNegocio(409, 'TRANSICAO_INVALIDA', `Não é possível avançar um pedido com status ${pedido.status}.`);
   }
-  mudarStatus(pedido, proximo);
-  return pedidoPublico(pedido);
+  transacao(() => mudarStatus(pedido.id, proximo));
+  return pedidoPublico(pedido.id);
 }
 
 function cancelarPedido(id) {
@@ -215,21 +266,19 @@ function cancelarPedido(id) {
   if (pedido.status !== 'PAGO') {
     throw new ErroNegocio(409, 'CANCELAMENTO_NAO_PERMITIDO', 'Só é possível cancelar pedidos que ainda não foram enviados.');
   }
-  if (!modoBugs) {
-    // Devolve os itens ao estoque. (No modo com bugs, isso não acontece.)
-    for (const item of pedido.itens) {
-      const produto = produtos.find((p) => p.id === item.produtoId);
-      if (produto) produto.estoque += item.quantidade;
+  transacao(() => {
+    if (!modoBugs) {
+      // Devolve os itens ao estoque. (No modo com bugs, isso não acontece.)
+      for (const item of sql.itens.all(pedido.id)) {
+        sql.ajustarEstoque.run(item.quantidade, item.produto_id);
+        sql.movimentar.run(item.produto_id, 'DEVOLUCAO', item.quantidade, pedido.id, agora());
+      }
     }
-  }
-  pedido.reembolsos.push({
-    id: `REE-${pedido.reembolsos.length + 1}`,
-    valorCentavos: pedido.totalCentavos,
-    motivo: 'Cancelamento do pedido',
-    criadoEm: new Date().toISOString(),
+    const codigo = `REE-${sql.reembolsos.all(pedido.id).length + 1}`;
+    sql.inserirReembolso.run(pedido.id, codigo, pedido.total_centavos, 'Cancelamento do pedido', null, agora());
+    mudarStatus(pedido.id, 'CANCELADO');
   });
-  mudarStatus(pedido, 'CANCELADO');
-  return pedidoPublico(pedido);
+  return pedidoPublico(pedido.id);
 }
 
 // Reembolso parcial de um pedido entregue.
@@ -239,17 +288,18 @@ function solicitarReembolso(id, { valor, motivo, chave } = {}) {
   if (!chave || typeof chave !== 'string') {
     throw new ErroNegocio(400, 'DADOS_INVALIDOS', 'A chave da solicitação é obrigatória.', 'chave');
   }
-  if (!modoBugs && pedido.chavesReembolso.has(chave)) {
-    // BUG (modo com bugs): sem esta verificação, a mesma solicitação gera dois reembolsos.
-    return { repetida: true, reembolso: pedido.chavesReembolso.get(chave), pedido: pedidoPublico(pedido) };
+  // BUG (modo com bugs): sem esta verificação, a mesma solicitação gera dois reembolsos.
+  const existente = modoBugs ? undefined : sql.reembolsoPorChave.get(pedido.id, chave);
+  if (existente) {
+    return { repetida: true, reembolso: reembolsoPublico(existente), pedido: pedidoPublico(pedido.id) };
   }
   if (pedido.status !== 'ENTREGUE') {
     throw new ErroNegocio(409, 'REEMBOLSO_NAO_PERMITIDO', 'O reembolso só pode ser solicitado para pedidos entregues.');
   }
 
   const valorCentavos = Math.round(Number(valor) * 100);
-  const jaReembolsado = pedido.reembolsos.reduce((s, r) => s + r.valorCentavos, 0);
-  const saldo = pedido.totalCentavos - jaReembolsado;
+  const jaReembolsado = sql.reembolsos.all(pedido.id).reduce((s, r) => s + r.valor_centavos, 0);
+  const saldo = pedido.total_centavos - jaReembolsado;
   if (!Number.isFinite(valorCentavos) || valorCentavos <= 0) {
     throw new ErroNegocio(422, 'VALOR_INVALIDO', 'Informe um valor de reembolso maior que zero.', 'valor');
   }
@@ -261,17 +311,13 @@ function solicitarReembolso(id, { valor, motivo, chave } = {}) {
     throw new ErroNegocio(400, 'DADOS_INVALIDOS', 'Descreva o motivo do reembolso (mínimo de 5 caracteres).', 'motivo');
   }
 
-  const reembolso = {
-    id: `REE-${pedido.reembolsos.length + 1}`,
-    valorCentavos,
-    motivo: motivoLimpo,
-    criadoEm: new Date().toISOString(),
-  };
-  pedido.reembolsos.push(reembolso);
-  const reembolsoPublico = { id: reembolso.id, valor: emReais(valorCentavos), motivo: motivoLimpo, criadoEm: reembolso.criadoEm };
-  pedido.chavesReembolso.set(chave, reembolsoPublico);
-  if (valorCentavos === saldo) mudarStatus(pedido, 'REEMBOLSADO');
-  return { repetida: false, reembolso: reembolsoPublico, pedido: pedidoPublico(pedido) };
+  const reembolso = transacao(() => {
+    const codigo = `REE-${sql.reembolsos.all(pedido.id).length + 1}`;
+    sql.inserirReembolso.run(pedido.id, codigo, valorCentavos, motivoLimpo, chave, agora());
+    if (valorCentavos === saldo) mudarStatus(pedido.id, 'REEMBOLSADO');
+    return sql.reembolsos.all(pedido.id).find((r) => r.codigo === codigo);
+  });
+  return { repetida: false, reembolso: reembolsoPublico(reembolso), pedido: pedidoPublico(pedido.id) };
 }
 
 reset();
