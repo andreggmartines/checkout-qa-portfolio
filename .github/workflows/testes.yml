@@ -29,6 +29,9 @@ jobs:
       - name: Subir a loja e rodar a coleção de API
         run: npm run test:api
 
+      - name: Validar os dados gravados no banco (SQL)
+        run: npm run sql:validar
+
       - name: Guardar o relatório do Newman
         if: always()
         uses: actions/upload-artifact@v4
