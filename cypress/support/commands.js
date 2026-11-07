@@ -72,3 +72,12 @@ Cypress.Commands.add('avancarEntregaViaApi', (idPedido, vezes = 1) => {
 });
 
 Cypress.Commands.add('buscarPedidoViaApi', (idPedido) => cy.request(`/api/pedidos/${idPedido}`).its('body'));
+
+// Consulta o banco de dados da loja com SQL (somente leitura). Os "?" são preenchidos pelos parâmetros.
+// Ex.: cy.consultarBanco('SELECT estoque FROM produtos WHERE id = ?', [2])
+Cypress.Commands.add('consultarBanco', (sql, parametros = []) =>
+  cy.task('consultarBanco', { sql, parametros }, { log: false }).then((linhas) => {
+    Cypress.log({ name: 'SQL', message: sql.replace(/\s+/g, ' ').trim(), consoleProps: () => ({ sql, parametros, linhas }) });
+    return linhas;
+  })
+);
