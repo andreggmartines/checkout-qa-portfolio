@@ -8,7 +8,7 @@ Uma loja virtual de artigos para casa, criada só para ser testada. O foco é o 
 >
 > - [x] Aplicação alvo (loja + API REST)
 > - [x] [Plano de testes baseado em risco](docs/plano-de-testes.md)
-> - [ ] Cenários em Gherkin (BDD)
+> - [x] [Cenários em Gherkin (BDD)](docs/cenarios/)
 > - [ ] Testes E2E com Cypress
 > - [ ] Testes de API com Postman/Newman
 > - [ ] Execução em CI com GitHub Actions
