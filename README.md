@@ -9,7 +9,7 @@ Uma loja virtual de artigos para casa, criada só para ser testada. O foco é o 
 > - [x] Aplicação alvo (loja + API REST)
 > - [x] [Plano de testes baseado em risco](docs/plano-de-testes.md)
 > - [x] [Cenários em Gherkin (BDD)](docs/cenarios/)
-> - [ ] Testes E2E com Cypress
+> - [x] [Testes E2E com Cypress](cypress/e2e/)
 > - [ ] Testes de API com Postman/Newman
 > - [ ] Execução em CI com GitHub Actions
 > - [ ] Bug reports de exemplo
@@ -33,6 +33,45 @@ npm run start:bugs
 ```
 
 Uma etiqueta vermelha "modo com bugs" aparece no topo da página.
+
+## Testes E2E com Cypress
+
+Os 24 cenários do [plano de testes](docs/plano-de-testes.md) estão automatizados em [`cypress/e2e`](cypress/e2e/), um arquivo por funcionalidade, seguindo os cenários em [Gherkin](docs/cenarios/).
+
+```bash
+npm install          # instala o Cypress (só na primeira vez)
+npm run test:e2e     # sobe a loja e roda os 24 testes
+npm run cy:open      # abre o Cypress no modo interativo (com a loja já rodando)
+```
+
+Para conferir que os testes realmente pegam os bugs, rode a suíte contra a loja no modo com bugs:
+
+```bash
+npm run test:e2e:bugs
+```
+
+Resultado esperado: **21 testes passam e 3 falham** (CT08, CT20 e CT24), um para cada bug conhecido.
+
+**Boas práticas aplicadas**
+
+- Seletores `data-cy`, que não quebram quando o layout ou o texto mudam.
+- Dados restaurados pela API antes de cada teste (`cy.restaurarLoja()`), então os testes são independentes e podem rodar em qualquer ordem.
+- Preparação pela API e verificação pela interface: nos testes de pós-venda, o pedido é criado com `cy.request()` e só o comportamento em teste passa pela tela.
+- Comandos customizados em [`cypress/support/commands.js`](cypress/support/commands.js) e massa de dados em [`cypress/fixtures`](cypress/fixtures/).
+- Testes de valor-limite (frete em exatamente R$ 200,00, reembolso R$ 0,01 acima do saldo).
+
+<details>
+<summary>Problemas para rodar o Cypress no Windows?</summary>
+
+Se o Cypress fechar sem mensagem de erro (falha da GPU do Electron), rode no PowerShell desativando a GPU e usando o Edge:
+
+```powershell
+$env:ELECTRON_EXTRA_LAUNCH_ARGS = "--disable-gpu --disable-gpu-sandbox"
+npm start          # em um terminal
+npx cypress run --browser edge   # em outro terminal
+```
+
+</details>
 
 ## Regras de negócio
 
@@ -77,7 +116,14 @@ POST /api/pedidos
 
 ```
 app/
-  server.js    servidor HTTP e rotas da API
-  store.js     regras de negócio e dados em memória
-  public/      telas da loja (catálogo, checkout e pedido)
+  server.js        servidor HTTP e rotas da API
+  store.js         regras de negócio e dados em memória
+  public/          telas da loja (catálogo, checkout e pedido)
+docs/
+  plano-de-testes.md   riscos, estratégia e matriz de cenários
+  cenarios/            cenários em Gherkin (BDD)
+cypress/
+  e2e/             testes E2E (CT01 a CT24)
+  support/         comandos customizados
+  fixtures/        dados de teste
 ```

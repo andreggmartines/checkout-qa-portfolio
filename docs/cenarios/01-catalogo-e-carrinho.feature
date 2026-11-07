@@ -60,6 +60,9 @@ Funcionalidade: Catálogo e carrinho
     Então o subtotal do carrinho deve ser "R$ 200,00"
     E o frete deve ser "Grátis"
     E o total do carrinho deve ser "R$ 200,00"
+    Quando concluo a compra com Pix
+    Então o frete do pedido deve ser "Grátis"
+    E o total do pedido deve ser "R$ 200,00"
 
   @CT09 @prioridade-baixa @risco-R09
   Cenário: Manter os itens do carrinho após recarregar a página
